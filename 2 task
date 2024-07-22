@@ -1,0 +1,46 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import explode, lit
+
+spark = SparkSession.builder.appName("ProductCategories").getOrCreate()
+
+products = spark.createDataFrame([
+    (1, "Product A"),
+    (2, "Product B"),
+    (3, "Product C"),
+    (4, "Product D")
+], ["product_id", "product_name"])
+
+categories = spark.createDataFrame([
+    (1, "Category X"),
+    (2, "Category Y"),
+    (3, "Category Z")
+], ["category_id", "category_name"])
+
+product_categories = spark.createDataFrame([
+    (1, 1),
+    (1, 2),
+    (2, 2),
+    (3, 3)
+], ["product_id", "category_id"])
+
+# Объединение датафреймов
+product_category_join = products.join(product_categories, "product_id", "left")
+product_category_join = product_category_join.join(categories, "category_id", "left")
+
+# Создание датафрейма с парами "Имя продукта - Имя категории"
+product_category_pairs = product_category_join.select(
+    product_category_join["product_name"],
+    product_category_join["category_name"]
+).na.drop(subset=["category_name"])
+
+# Создание датафрейма с продуктами, у которых нет категорий
+products_without_categories = product_category_join.filter(product_category_join["category_name"].isNull()).select(
+    product_category_join["product_name"]
+).distinct()
+
+result = product_category_pairs.union(
+    products_without_categories.withColumn("category_name", lit(None))
+)
+
+# Вывод результата
+result.show()
